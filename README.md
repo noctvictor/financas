@@ -32,10 +32,7 @@ Um app de finanças pessoais simples, rápido e que funciona offline. Feito em u
 O app está hospedado no GitHub Pages. Basta abrir o link no navegador:
 
 ```
-https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/
-```
-
-> Troque pelo seu endereço real depois de ativar o GitHub Pages nas configurações do repositório.
+https://noctvictor.github.io/financas/```
 
 ### Instalar como aplicativo no celular
 
