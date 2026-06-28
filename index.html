@@ -31,6 +31,11 @@
   .hero .label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1.4px;}
   .hero .saldo{font-family:var(--mono);font-size:36px;font-weight:600;margin:6px 0 16px;letter-spacing:-1px;transition:color .3s;}
   .hero .split{display:flex;gap:8px;flex-wrap:wrap;}
+  .balchart{margin-top:14px;background:var(--surface-2);border-radius:13px;padding:12px 12px 6px;}
+  .balchart-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;}
+  .balchart-head .bc-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;}
+  .balchart-head .bc-v{font-family:var(--mono);font-size:16px;font-weight:600;}
+  .balchart-note{font-size:10px;color:var(--faint);line-height:1.4;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);}
   .pill{flex:1 1 calc(50% - 4px);border-radius:12px;padding:10px 11px;background:var(--surface-2);min-width:0;}
   .pill .t{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:5px;letter-spacing:.4px;}
   .pill .v{font-family:var(--mono);font-size:14px;font-weight:600;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -339,6 +344,103 @@ function isRecActive(r){return !r.endMonth;}
 function recIncomeForMonth(mk){
   return recIncome.filter(r=>recActiveInComp(r,mk)).map(r=>({id:"rec_"+r.id+"_"+mk,type:"Entrada",value:r.value,desc:r.name,cat:r.cat||"Salário",date:recChargeISO(r,mk),_rec:r.id}));
 }
+/* "patrimônio" do mês: como o saldo, mas NEUTRO a reservas — investir não derruba, resgatar não infla,
+   porque guardar/resgatar só move dinheiro entre a conta e a reserva, sem mudar o total que é seu. */
+function patrimonioDoMes(mk){
+  // entradas que NÃO são resgate de reserva (resgate é dinheiro que já era seu voltando)
+  let inc=entries.filter(e=>ym(e.date)===mk&&e.type==="Entrada"&&!e.reserveWithdraw).reduce((s,e)=>s+e.value,0);
+  inc+=recIncomeForMonth(mk).reduce((s,e)=>s+e.value,0);
+  // gastos à vista que NÃO são aporte em reserva (aporte é dinheiro seu mudando de lugar)
+  const cashOut=entries.filter(e=>ym(e.date)===mk&&e.type==="Saída"&&e.method==="À vista"&&!isReserveCat(e.cat)).reduce((s,e)=>s+e.value,0);
+  const paid=payments.filter(p=>ym(p.date)===mk).reduce((s,p)=>s+p.value,0);
+  return inc-cashOut-paid;
+}
+/* gráfico de linha (SVG) do saldo acumulado ao longo dos meses */
+function saldoChartHTML(){
+  let serie=saldoAcumuladoSerie();
+  if(serie.length<2)return ""; // precisa de pelo menos 2 meses pra fazer sentido
+  // mostra os últimos 12 pontos
+  if(serie.length>12)serie=serie.slice(serie.length-12);
+  const W=320,H=96,padX=6,padTop=10,padBot=20;
+  const vals=serie.map(p=>p.acumulado);
+  let min=Math.min(...vals,0),max=Math.max(...vals,0);
+  if(min===max){min-=1;max+=1;}
+  const innerW=W-padX*2,innerH=H-padTop-padBot;
+  const x=i=>padX+(serie.length===1?innerW/2:(i/(serie.length-1))*innerW);
+  const y=v=>padTop+innerH-((v-min)/(max-min))*innerH;
+  const yZero=y(0);
+  // caminho da linha
+  const linePts=serie.map((p,i)=>`${x(i).toFixed(1)},${y(p.acumulado).toFixed(1)}`);
+  const linePath="M"+linePts.join(" L");
+  // área sob a linha até a base
+  const areaPath=`M${x(0).toFixed(1)},${(padTop+innerH).toFixed(1)} L`+linePts.join(" L")+` L${x(serie.length-1).toFixed(1)},${(padTop+innerH).toFixed(1)} Z`;
+  const last=serie[serie.length-1];
+  const lastCol=last.acumulado>=0?"var(--in)":"var(--out)";
+  // pontos + rótulos de mês (mostra alguns pra não poluir)
+  const stepLbl=Math.ceil(serie.length/6);
+  const dots=serie.map((p,i)=>{
+    const isLast=i===serie.length-1;
+    const cor=p.acumulado>=0?"var(--in)":"var(--out)";
+    return `<circle cx="${x(i).toFixed(1)}" cy="${y(p.acumulado).toFixed(1)}" r="${isLast?3.5:2}" fill="${isLast?cor:"var(--surface)"}" stroke="${cor}" stroke-width="1.5"/>`;
+  }).join("");
+  const labels=serie.map((p,i)=>{
+    if(i%stepLbl!==0&&i!==serie.length-1)return "";
+    const m=parseInt(p.mk.split("-")[1],10);
+    const nome=MESES[m-1].slice(0,3);
+    return `<text x="${x(i).toFixed(1)}" y="${H-6}" font-size="8" fill="var(--faint)" text-anchor="middle" font-family="system-ui">${nome}</text>`;
+  }).join("");
+  // linha do zero (se a faixa cruza o zero)
+  const zeroLine=(min<0&&max>0)?`<line x1="${padX}" y1="${yZero.toFixed(1)}" x2="${W-padX}" y2="${yZero.toFixed(1)}" stroke="var(--line)" stroke-width="1" stroke-dasharray="3 3"/>`:"";
+  const aid="g"+Math.random().toString(36).slice(2,7);
+  // quanto do patrimônio está hoje guardado em reservas (investido) — informativo
+  const totalReservado=RESERVE_CATS.reduce((s,n)=>s+Math.max(0,reserveTotal(n)),0);
+  const notaInvest=totalReservado>0?`<div class="balchart-note">Inclui ${brl(totalReservado)} guardado em reservas. Investir não derruba a linha — o dinheiro continua seu.</div>`:`<div class="balchart-note">Soma o que sobra de cada mês. Guardar em reserva não derruba a linha.</div>`;
+  return `<div class="balchart">
+    <div class="balchart-head">
+      <span class="bc-l">Patrimônio acumulado</span>
+      <span class="bc-v" style="color:${lastCol}">${brl(last.acumulado)}</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="display:block">
+      <defs><linearGradient id="${aid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${lastCol}" stop-opacity="0.22"/>
+        <stop offset="100%" stop-color="${lastCol}" stop-opacity="0"/>
+      </linearGradient></defs>
+      ${zeroLine}
+      <path d="${areaPath}" fill="url(#${aid})"/>
+      <path d="${linePath}" fill="none" stroke="${lastCol}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}${labels}
+    </svg>
+    ${notaInvest}
+  </div>`;
+}
+/* gráfico de linha (SVG) do saldo acumulado ao longo dos meses — fim */
+function firstActivityMonth(){
+  let min=null;
+  const consider=k=>{if(k&&(!min||k<min))min=k;};
+  entries.forEach(e=>consider(ym(e.date)));
+  payments.forEach(p=>consider(ym(p.date)));
+  recIncome.forEach(r=>consider(r.startMonth));
+  subs.forEach(s=>consider(s.startMonth));
+  return min;
+}
+/* série do saldo ACUMULADO, do primeiro mês com dados até o mês atualmente visualizado */
+function saldoAcumuladoSerie(){
+  const first=firstActivityMonth();
+  if(!first)return [];
+  const end=curKey();
+  // não desenha se o mês visto é anterior ao primeiro dado
+  if(end<first)return [];
+  const serie=[];let acc=0;
+  let k=first;
+  // limite de segurança de 240 meses (20 anos)
+  for(let i=0;i<240;i++){
+    acc+=patrimonioDoMes(k);
+    serie.push({mk:k,saldo:patrimonioDoMes(k),acumulado:acc});
+    if(k===end)break;
+    k=addMonthsKey(k,1);
+  }
+  return serie;
+}
 
 /* ===== Assinaturas (recorrentes) =====
    Uma assinatura é "virtual": não cria lançamentos físicos. Em cada mês ativo, ela gera
@@ -458,6 +560,7 @@ function render(){
         <div class="pill"><div class="t"><span class="dot card"></span>A pagar</div><div class="v" style="color:var(--card)">${brl(aPagar)}</div></div>
         ${gastoCartaoMes>0?`<div class="pill"><div class="t"><span class="dot card"></span>No cartão (mês)</div><div class="v" style="color:var(--card)">${brl(gastoCartaoMes)}</div></div>`:""}
       </div>
+      ${saldoChartHTML()}
       <div class="toolbar">
         <button onclick="openSummary()">📊 Resumo</button>
         <button onclick="openSearch()">🔍 Buscar</button>
@@ -1344,4 +1447,3 @@ load();
 </script>
 </body>
 </html>
-
