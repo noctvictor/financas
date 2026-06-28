@@ -4,6 +4,10 @@ Um app de finanças pessoais simples, rápido e que funciona offline. Feito em u
 
 > Acompanhe entradas, gastos à vista e no cartão de crédito, faturas, assinaturas, reservas e orçamentos — tudo em um lugar.
 
+## 🔗 Acesse o app
+
+**👉 [noctvictor.github.io/financas](https://noctvictor.github.io/financas/)**
+
 ---
 
 ## ✨ O que ele faz
@@ -27,19 +31,16 @@ Um app de finanças pessoais simples, rápido e que funciona offline. Feito em u
 
 ## 🚀 Como usar
 
-### Online (recomendado)
+Basta abrir o link no navegador:
 
-O app está hospedado no GitHub Pages. Basta abrir o link no navegador:
-
-```
-https://noctvictor.github.io/financas/```
+**[noctvictor.github.io/financas](https://noctvictor.github.io/financas/)**
 
 ### Instalar como aplicativo no celular
 
 Depois de abrir o link, dá pra instalar como um app de verdade (ícone na tela inicial, tela cheia, funciona offline):
 
 - **Android (Chrome):** menu `⋮` → **Instalar app** (ou "Adicionar à tela inicial").
-- **iPhone (Safari):** botão de compartilhar `􀈂` → **Adicionar à Tela de Início**.
+- **iPhone (Safari):** botão de compartilhar → **Adicionar à Tela de Início**.
 
 ---
 
@@ -89,7 +90,7 @@ Exemplo: se o fechamento é dia 2, uma compra feita no dia 4 já entra no próxi
 
 | Arquivo | Função |
 |---|---|
-| `index.html` | O app inteiro |
+| `index.html` | O app inteiro — interface, lógica e visual |
 | `sw.js` | Service worker (modo offline) |
 
 ---
