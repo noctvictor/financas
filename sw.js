@@ -3,7 +3,7 @@
    Estratégia: rede primeiro (pega atualizações quando online),
    cache como reserva (funciona sem internet). */
 const CACHE = "financas-app-v1";
-
+ 
 self.addEventListener("install", e => {
   self.skipWaiting();
   e.waitUntil(
